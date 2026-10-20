@@ -135,10 +135,13 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 2. 在 **Scopes**（範圍）區，勾選兩個：
    - **bot**
    - **applications.commands**（讓 bot 能提供 `/今日` 這類斜線指令）
-3. 勾選 bot 之後，下面會出現 **Bot Permissions**（bot 權限）區。**只勾這三個**：
+3. 勾選 bot 之後，下面會出現 **Bot Permissions**（bot 權限）區。**只勾這四個**：
    - **View Channels**（檢視頻道）：看得到頻道
    - **Send Messages**（傳送訊息）：能回覆
    - **Read Message History**（讀取訊息歷史）：能「回覆某一則訊息」
+   - **Add Reactions**（新增反應）：收到照片時，bot 會在你的訊息上加 ⏳，處理完換成 ✅ 或 ❌
+
+   > **如果你之前已經用只有前三個權限的網址把 bot 邀進去了：** 不用移除 bot。照這一節重新產生網址（四個都勾）、再走一次 4.3，選同一個 Server 重新授權，權限就會更新。
 4. **不要**勾 Administrator（管理員）或其他權限。原則是只給 bot 做事所需要的最小權限。
 5. 頁面最下面會出現 **Generated URL**（產生的網址），點旁邊的 **Copy**。
 
@@ -169,7 +172,7 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 - [ ] Public Bot 已關閉
 - [ ] 我已複製 bot token，並**只**貼進 `.env`，沒貼到任何其他地方
 - [ ] `.env` 放在專案資料夾，檔名真的是 `.env`（不是 `.env.txt`）
-- [ ] 邀請網址的 Scopes 勾了 `bot` 和 `applications.commands`，權限只勾了 View Channels、Send Messages、Read Message History
+- [ ] 邀請網址的 Scopes 勾了 `bot` 和 `applications.commands`，權限只勾了 View Channels、Send Messages、Read Message History、Add Reactions
 - [ ] bot 已出現在我的 Server 成員清單（灰色離線）
 - [ ] 我執行 `git status`，確認 `.env` 沒有出現在待 commit 清單裡
 
