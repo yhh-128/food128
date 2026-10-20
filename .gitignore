@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# food128 runtime data (DATA_DIR contents: photos, Excel, logs)
+data/
+DATA_DIR/
+photos/
+inbox/
+logs/
+records.xlsx
