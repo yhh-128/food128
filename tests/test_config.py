@@ -1,4 +1,4 @@
-from foodbot.config import PROJECT_ROOT, load_config
+from gift_agent.config import PROJECT_ROOT, load_config
 
 
 def test_relative_data_dir_is_relative_to_project(tmp_path):

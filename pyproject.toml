@@ -1,7 +1,7 @@
 [project]
-name = "foodbot"
+name = "gift-agent"
 version = "0.1.0"
-description = "Discord bot that logs food photos: claude -p estimates calories, results go to Excel."
+description = "Discord bot that identifies gifts, scores the thoughtfulness (1-10), and keeps a private gift cabinet per user in Excel."
 requires-python = ">=3.12"
 dependencies = [
     "discord-py>=2.7.1",
@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-foodbot = "foodbot.main:main"
+gift-agent = "gift_agent.main:main"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]

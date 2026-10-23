@@ -1,4 +1,4 @@
-"""啟動入口：`uv run foodbot`"""
+"""啟動入口：`uv run gift-agent`"""
 
 import logging
 import sys
@@ -6,8 +6,8 @@ from logging.handlers import RotatingFileHandler
 
 import discord
 
-from foodbot.bot import FoodBot
-from foodbot.config import Config, ConfigError, load_config
+from gift_agent.bot import GiftBot
+from gift_agent.config import Config, ConfigError, load_config
 
 
 def _setup_logging(cfg: Config) -> None:
@@ -37,7 +37,7 @@ def main() -> None:
 
     _setup_logging(cfg)
     try:
-        FoodBot(cfg).run(cfg.discord_token, log_handler=None)
+        GiftBot(cfg).run(cfg.discord_token, log_handler=None)
     except discord.LoginFailure:
         print("登入失敗：DISCORD_TOKEN 不正確（可以到 Developer Portal 重設 token 後更新 .env）", file=sys.stderr)
         raise SystemExit(1) from None
