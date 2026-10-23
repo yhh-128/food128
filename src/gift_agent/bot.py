@@ -2,7 +2,7 @@
 
 誰的訊息會被處理：
   ・有圖片附件 → 登錄一件禮物
-  ・沒有圖片，但 @agent，或是回覆 agent 的某則訊息 → 一句要理解的話
+  ・沒有圖片，但提及（@）機器人，或是回覆機器人的某則訊息 → 一句要理解的話
   ・其餘聊天、機器人的訊息、別的頻道 → 一律忽略（也不花 AI 額度）
 """
 
@@ -112,10 +112,20 @@ class GiftBot(discord.Client):
         async def cabinet(interaction: discord.Interaction) -> None:
             await self.show_cabinet(interaction)
 
+        @self.tree.command(name="說明", description="看這個助理怎麼操作（只有你看得到）")
+        async def guide(interaction: discord.Interaction) -> None:
+            await self.show_guide(interaction)
+
     async def setup_hook(self) -> None:
         self.queue.start()
+        self._remember_own_mention()
+
+    def _remember_own_mention(self) -> None:
+        """說明文字裡的「@機器人」要換成機器人真正的提及（顯示成它現在的名字）。"""
+        report.set_bot_mention(self.user.id if self.user else None)
 
     async def on_ready(self) -> None:
+        self._remember_own_mention()
         log.info("已上線：%s，只聽頻道 %s", self.user, self.cfg.channel_id)
         channel = self.get_channel(self.cfg.channel_id)
         if channel is None:
@@ -133,7 +143,7 @@ class GiftBot(discord.Client):
         except discord.HTTPException as exc:
             log.warning(
                 "斜線指令登記失敗（%s）：邀請 bot 時要勾選 applications.commands 範圍，"
-                "請照 docs/discord-bot-setup.md 第四節重新授權一次。沒有它仍可用 @agent 查詢。", exc,
+                "請照 docs/discord-bot-setup.md 第四節重新授權一次。沒有它仍可用 @機器人 查詢。", exc,
             )
             return
         self._commands_synced = True
@@ -160,6 +170,20 @@ class GiftBot(discord.Client):
             log.error("讀取禮物櫃失敗：%s", exc)
             text = report.EXCEL_FAIL_TEXT
         await interaction.followup.send(text, ephemeral=True)
+
+    async def show_guide(self, interaction: discord.Interaction) -> None:
+        """/說明：給「跟第一次進來的人一模一樣」的使用說明；回覆只有本人看得到。不呼叫 AI，不花額度。"""
+        if interaction.channel_id != self.cfg.channel_id:
+            await interaction.response.send_message(
+                f"請到 <#{self.cfg.channel_id}> 使用這個指令。", ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=False)
+        try:  # 已經看過說明了，就不用再在頻道裡公開歡迎一次
+            await self.store.mark_welcomed(interaction.user.id, str(getattr(interaction.user, "display_name", "")))
+        except StorageError as exc:
+            log.warning("無法記錄歡迎狀態（說明仍會照常顯示）：%s", exc)
+        await interaction.followup.send(report.welcome_text(), ephemeral=True)
 
     # ------------------------------------------------------------ 收訊息
 

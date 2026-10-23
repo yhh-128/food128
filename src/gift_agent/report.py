@@ -23,6 +23,21 @@ def _clip(text: str) -> str:
     return text[:MAX_REPLY_CHARS]
 
 
+_DEFAULT_BOT_MENTION = "@機器人"
+_bot_mention = _DEFAULT_BOT_MENTION
+
+
+def set_bot_mention(user_id: int | None) -> None:
+    """記下機器人自己的帳號。之後說明文字裡的「@機器人」會變成真正的提及（<@編號>），
+    在 Discord 裡會顯示成機器人現在的名字，使用者可以直接點它或照著打。登入前先用「@機器人」代替。"""
+    global _bot_mention
+    _bot_mention = f"<@{user_id}>" if user_id else _DEFAULT_BOT_MENTION
+
+
+def bot_mention() -> str:
+    return _bot_mention
+
+
 def money(value: float | None) -> str:
     return "不明" if value is None else f"NT${round(value):,}"
 
@@ -96,8 +111,8 @@ def cabinet_reply(rows: list[GiftRow]) -> str:
     shown = ordered[:MAX_LIST_ITEMS]
     lines = [f"🎁 你的禮物櫃：共 {len(rows)} 件，平均心意指數 {average:.1f}"] + [gift_line(r) for r in shown]
     if len(ordered) > len(shown):
-        lines.append(f"……還有 {len(ordered) - len(shown)} 件沒列出。@我 說「列出送給媽媽的」之類的話可以縮小範圍。")
-    lines.append("想看某一件的詳情，@我 說「看 #編號」。")
+        lines.append(f"……還有 {len(ordered) - len(shown)} 件沒列出。{bot_mention()} 說「列出送給媽媽的」之類的話可以縮小範圍。")
+    lines.append(f"想看某一件的詳情，{bot_mention()} 說「看 #編號」。")
     return _clip("\n".join(lines))
 
 
@@ -198,8 +213,8 @@ def welcome_text(mention: str | None = None) -> str:
         f"{hello}我是禮物櫃助理 🎁，可以這樣用：\n"
         "1️⃣ **傳一張你送出去的禮物照片**（可以順便說明場合、送給誰、是不是手作、預算），我會辨識它並打 1～10 分的心意指數。\n"
         "2️⃣ **輸入 `/禮物櫃`**，就能打開你自己的禮物櫃，看到你送過的所有禮物（只有你看得到）。\n"
-        "3️⃣ **告訴我你要送禮的對象**，我可以推薦適合的禮物。例如 @我 說：「同事下週生日，預算 800，幫我推薦」。\n"
-        "想知道更多，@我 說「怎麼用」就可以了。"
+        f"3️⃣ **告訴我你要送禮的對象**，我可以推薦適合的禮物。例如 {bot_mention()} 說：「同事下週生日，預算 800，幫我推薦」。\n"
+        "隨時輸入 `/說明` 可以再看一次這份說明。"
     )
 
 
@@ -207,8 +222,8 @@ def help_reply() -> str:
     return _clip(
         "我是禮物櫃助理 🎁\n"
         "・傳一張你送出去的禮物照片（可以順便說明場合、送給誰、是不是手作、預算），我會辨識並打心意指數。\n"
-        "・輸入 /禮物櫃 可以打開你自己的禮物櫃（只有你看得到）。\n"
-        "・@我 或回覆我的訊息，用日常說話問我，例如：\n"
+        "・輸入 /禮物櫃 可以打開你自己的禮物櫃（只有你看得到）；輸入 /說明 可以再看一次使用說明。\n"
+        f"・{bot_mention()} 或回覆我的訊息，用日常說話問我（在輸入框打 @，從選單選我的名字），例如：\n"
         "　「我送過哪些禮物？」「這個月的心意指數統計」「#3 其實是手作的」\n"
         "　「刪掉 #5」「幫我重新評分 #3」「同事下週生日，預算 800，幫我推薦」「記住：我喜歡實用型的禮物」\n"
         "・你只看得到、也只改得到自己的禮物櫃。\n\n"

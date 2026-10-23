@@ -322,9 +322,9 @@ def cabinet_bot(cfg):
     return GiftBot(dataclasses.replace(cfg, channel_id=CHANNEL))
 
 
-def test_cabinet_command_is_registered_with_the_right_name(cfg):
+def test_slash_commands_are_registered_with_the_right_names(cfg):
     b = GiftBot(cfg)
-    assert [c.name for c in b.tree.get_commands()] == ["禮物櫃"]
+    assert sorted(c.name for c in b.tree.get_commands()) == sorted(["禮物櫃", "說明"])
 
 
 def test_cabinet_lists_only_my_gifts_and_only_i_can_see_it(cfg):
@@ -569,4 +569,110 @@ def test_long_cabinet_plus_guide_still_fits_in_one_message(cfg):
         i = slash(1001)
         await b.show_cabinet(i)
         assert len(i.followup.send.call_args.args[0]) <= 2000
+    asyncio.run(go())
+
+
+# ---------------------------------------------------------------- /說明 斜線指令
+
+
+def test_guide_command_gives_the_same_text_as_the_first_time_welcome(cfg):
+    from gift_agent import report
+
+    async def go():
+        b = cabinet_bot(cfg)
+        i = slash(1001)
+        await b.show_guide(i)
+        i.response.defer.assert_awaited_once()
+        assert i.response.defer.call_args.kwargs["ephemeral"] is True
+        sent = i.followup.send.call_args.args[0]
+        assert i.followup.send.call_args.kwargs["ephemeral"] is True  # 只有本人看得到
+        assert sent == report.welcome_text()  # 跟第一次進來的人看到的是同一份（只差沒有 @ 人）
+        for part in ("傳一張你送出去的禮物照片", "1～10 分的心意指數", "/禮物櫃", "送禮的對象", "推薦", "/說明"):
+            assert part in sent
+        # 頻道裡的公開歡迎多一個 @人，其餘內容完全相同
+        assert report.welcome_text("<@1001>").replace("歡迎 <@1001>！", "歡迎！") == sent
+    asyncio.run(go())
+
+
+def test_guide_command_only_works_in_the_agents_channel(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        i = slash(1001, channel=555)
+        await b.show_guide(i)
+        i.response.send_message.assert_awaited_once()
+        assert i.response.send_message.call_args.kwargs["ephemeral"] is True
+        assert f"<#{CHANNEL}>" in i.response.send_message.call_args.args[0]
+        i.followup.send.assert_not_called()
+    asyncio.run(go())
+
+
+def test_after_guide_command_the_person_is_not_welcomed_again_in_chat(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        b._connection.user = BOT_USER
+        await b.show_guide(slash(1001))
+        m = chat(50, author_id=1001)
+        await b.on_message(m)
+        m.channel.send.assert_not_called()
+        again = slash(1001)
+        await b.show_guide(again)  # 可以重複看，不會變成「第一次」
+        assert again.followup.send.call_args.args[0].startswith("👋 歡迎！")
+    asyncio.run(go())
+
+
+def test_guide_command_still_works_when_excel_is_broken(cfg, monkeypatch):
+    async def go():
+        b = cabinet_bot(cfg)
+
+        async def boom(uid, name):
+            raise ExcelWriteError("locked")
+
+        monkeypatch.setattr(b.store, "mark_welcomed", boom)
+        i = slash(1001)
+        await b.show_guide(i)
+        assert "禮物櫃助理" in i.followup.send.call_args.args[0]
+    asyncio.run(go())
+
+
+def test_guide_is_available_to_everyone_independently_and_costs_no_ai(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        for uid in (1001, 1002):
+            i = slash(uid)
+            await b.show_guide(i)
+            assert "禮物櫃助理" in i.followup.send.call_args.args[0]
+    asyncio.run(go())
+
+
+# ---------------------------------------------------------------- 說明文字裡的「@機器人」
+
+
+def test_the_bot_remembers_its_own_mention_when_it_comes_online(cfg):
+    from gift_agent import report
+
+    async def go():
+        b = cabinet_bot(cfg)
+        b._connection.user = BOT_USER
+        b.get_channel = lambda cid: None  # 這個測試只關心提及，不登記指令
+        await b.on_ready()
+        assert report.bot_mention() == f"<@{BOT_ID}>"
+    asyncio.run(go())
+
+
+def test_guide_and_welcome_tell_people_to_mention_the_bot_by_name(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        b._connection.user = BOT_USER
+        b._remember_own_mention()
+        i = slash(1001)
+        await b.show_guide(i)
+        text = i.followup.send.call_args.args[0]
+        assert f"<@{BOT_ID}>" in text and "@我" not in text
+
+        m = chat(60, author_id=1002)
+        await b.on_message(m)
+        public = m.channel.send.call_args.args[0]
+        assert f"<@{BOT_ID}>" in public and "<@1002>" in public and "@我" not in public
+        # 提及機器人只是顯示名字，不會真的通知別人：允許通知的只有新來的那個人
+        assert [u.id for u in m.channel.send.call_args.kwargs["allowed_mentions"].users] == [1002]
     asyncio.run(go())
