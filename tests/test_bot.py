@@ -12,7 +12,7 @@ from gift_agent import pipeline, router
 from gift_agent.analyzer import AnalysisError
 from gift_agent.bot import DeleteConfirmView, GiftBot
 from gift_agent.config import Config
-from gift_agent.storage import ExcelWriteError
+from gift_agent.storage import ExcelWriteError, GiftStore
 
 CHANNEL = 111
 BOT_ID = 999
@@ -27,7 +27,7 @@ def message(mid, attachments=(), channel=CHANNEL, bot=False, content="", author_
     m = MagicMock()
     m.id = mid
     m.author = SimpleNamespace(id=author_id, bot=bot, display_name=name)
-    m.channel = SimpleNamespace(id=channel, fetch_message=AsyncMock())
+    m.channel = SimpleNamespace(id=channel, fetch_message=AsyncMock(), send=AsyncMock())
     m.attachments = list(attachments)
     m.content = content
     m.mentions = list(mentions)
@@ -129,7 +129,7 @@ def test_not_a_gift_marks_cross(cfg):
     run_bot(cfg, go, analyze=ok_analyze(GiftAnalysis(status="not_a_gift", what_is_it="風景")))
     assert "看不出是禮物" in m.reply.call_args.args[0]
     assert m.add_reaction.call_args.args[0] == "❌"
-    assert not cfg.excel_path.exists()
+    assert asyncio.run(GiftStore(cfg).list_gifts("1001")) == []  # 沒有建檔
 
 
 def test_failure_replies_and_marks_cross(cfg):
@@ -421,3 +421,152 @@ def test_sync_failure_is_a_warning_not_a_crash(cfg, caplog):
         assert b._commands_synced is False
     asyncio.run(go())
     assert "applications.commands" in caplog.text
+
+
+# ---------------------------------------------------------------- 第一次出現的人：使用說明
+
+
+def chat(mid, author_id=1001, name="小明", content="大家好", channel=CHANNEL, bot=False):
+    return message(mid, content=content, author_id=author_id, name=name, channel=channel, bot=bot)
+
+
+def test_first_message_gets_the_three_point_guide_once(cfg):
+    first, second = chat(30), chat(31, content="再說一次")
+
+    async def go(b):
+        await b.on_message(first)
+        await b.on_message(second)
+
+    run_bot(cfg, go, interpret=interpret_with(AnalysisError("不該被呼叫")))
+    first.channel.send.assert_awaited_once()
+    text = first.channel.send.call_args.args[0]
+    assert "<@1001>" in text
+    assert "傳一張你送出去的禮物照片" in text and "1～10 分的心意指數" in text  # 1. 傳照片並評分
+    assert "/禮物櫃" in text and "自己的禮物櫃" in text  # 2. /禮物櫃
+    assert "送禮的對象" in text and "推薦" in text  # 3. 說對象就能推薦
+    second.channel.send.assert_not_called()  # 同一個人第二次不再說明
+
+
+def test_guide_only_pings_the_new_person(cfg):
+    m = chat(32, author_id=1001)
+
+    async def go(b):
+        await b.on_message(m)
+
+    run_bot(cfg, go)
+    allowed = m.channel.send.call_args.kwargs["allowed_mentions"]
+    assert allowed.everyone is False and allowed.roles is False
+    assert [u.id for u in allowed.users] == [1001]
+
+
+def test_each_new_person_gets_their_own_guide_and_bots_and_other_channels_do_not(cfg):
+    a, b_, bot_msg, elsewhere = chat(33, 1001), chat(34, 1002), chat(35, 7777, bot=True), chat(36, 1003, channel=555)
+
+    async def go(b):
+        for m in (a, b_, bot_msg, elsewhere):
+            await b.on_message(m)
+
+    run_bot(cfg, go)
+    assert a.channel.send.await_count == 1 and b_.channel.send.await_count == 1
+    bot_msg.channel.send.assert_not_called()
+    elsewhere.channel.send.assert_not_called()
+
+
+def test_two_quick_messages_still_get_only_one_guide(cfg):
+    one, two = chat(37), chat(38)
+
+    async def go(b):
+        await asyncio.gather(b.on_message(one), b.on_message(two))
+
+    run_bot(cfg, go)
+    assert one.channel.send.await_count + two.channel.send.await_count == 1
+
+
+def test_guide_is_remembered_after_a_restart(cfg):
+    first, after_restart = chat(39), chat(40)
+
+    async def go1(b):
+        await b.on_message(first)
+
+    async def go2(b):
+        await b.on_message(after_restart)
+
+    run_bot(cfg, go1)
+    run_bot(cfg, go2)  # 新的 GiftBot，讀的是同一個 Excel
+    first.channel.send.assert_awaited_once()
+    after_restart.channel.send.assert_not_called()
+
+
+def test_guide_comes_before_the_normal_reply_to_a_first_photo(cfg):
+    m = message(41, [attachment(41)])
+    order = []
+    m.channel.send.side_effect = lambda *a, **k: order.append("welcome")
+    m.reply.side_effect = lambda *a, **k: (order.append("reply"), SimpleNamespace(id=1))[1]
+
+    async def go(b):
+        await b.on_message(m)
+
+    run_bot(cfg, go, analyze=ok_analyze())
+    assert order == ["welcome", "reply"]
+
+
+def test_a_failing_excel_does_not_break_messages_or_spam_guides(cfg, monkeypatch):
+    m = chat(42)
+
+    async def go(b):
+        async def boom(uid, name):
+            raise ExcelWriteError("locked")
+
+        monkeypatch.setattr(b.store, "mark_welcomed", boom)
+        await b.on_message(m)
+
+    run_bot(cfg, go)
+    m.channel.send.assert_not_called()
+
+
+def test_a_failing_send_does_not_break_the_normal_reply(cfg):
+    m = message(43, [attachment(43)])
+    m.channel.send.side_effect = discord.Forbidden(SimpleNamespace(status=403, reason="x"), "Missing Permissions")
+
+    async def go(b):
+        await b.on_message(m)
+
+    run_bot(cfg, go, analyze=ok_analyze())
+    assert "已登錄到你的禮物櫃" in m.reply.call_args.args[0]
+
+
+def test_first_cabinet_command_puts_the_guide_in_the_private_reply(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        await add(b.store, "1001", name="我的圍巾")
+        first, again = slash(1001), slash(1001)
+        first.user.display_name = "小明"
+        await b.show_cabinet(first)
+        text = first.followup.send.call_args.args[0]
+        assert first.followup.send.call_args.kwargs["ephemeral"] is True
+        assert "/禮物櫃" in text and "我的圍巾" in text and "歡迎" in text and len(text) <= 2000
+        await b.show_cabinet(again)
+        assert "歡迎" not in again.followup.send.call_args.args[0]
+    asyncio.run(go())
+
+
+def test_someone_welcomed_by_the_cabinet_command_is_not_welcomed_again_in_chat(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        b._connection.user = BOT_USER
+        await b.show_cabinet(slash(1001))
+        m = chat(44, author_id=1001)
+        await b.on_message(m)
+        m.channel.send.assert_not_called()
+    asyncio.run(go())
+
+
+def test_long_cabinet_plus_guide_still_fits_in_one_message(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        for n in range(20):
+            await add(b.store, "1001", name="很長的禮物名稱" * 4 + str(n), recipient="很長的對象名稱" * 3)
+        i = slash(1001)
+        await b.show_cabinet(i)
+        assert len(i.followup.send.call_args.args[0]) <= 2000
+    asyncio.run(go())

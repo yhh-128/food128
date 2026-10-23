@@ -152,6 +152,10 @@ class GiftBot(discord.Client):
         try:
             rows = await self.store.list_gifts(interaction.user.id)  # 身分只來自 Discord（防護 5 會篩選）
             text = report.cabinet_reply(rows)
+            # 第一次出現的人，順便把使用說明放在這則只有本人看得到的回覆裡（不必再公開歡迎一次）
+            if await self.store.mark_welcomed(interaction.user.id, str(getattr(interaction.user, "display_name", ""))):
+                intro = report.welcome_text() + "\n\n"
+                text = intro + text[: report.DISCORD_LIMIT - len(intro)]
         except StorageError as exc:
             log.error("讀取禮物櫃失敗：%s", exc)
             text = report.EXCEL_FAIL_TEXT
@@ -166,6 +170,7 @@ class GiftBot(discord.Client):
         if message.author.bot or message.channel.id != self.cfg.channel_id:
             return
 
+        await self._welcome_if_first_time(message)
         caption = self._strip_mention(message.content)
         images = [a for a in message.attachments if _is_image(a)]
         if images:
@@ -182,6 +187,27 @@ class GiftBot(discord.Client):
         self._pending[message.id] = _Pending(remaining=1)
         await self._react(message, WAIT_EMOJI)
         self.queue.put(_TextTask(message, caption, reply_to_id))
+
+    async def _welcome_if_first_time(self, message: discord.Message) -> None:
+        """人第一次在這個頻道發言時，說明這個助理怎麼用（每個人只說一次，記在 Excel 的「已歡迎」工作表）。
+        用「第一次發言」而不是「加入頻道」，這樣不需要在 Developer Portal 另外打開 Server Members Intent。"""
+        author = message.author
+        try:
+            first = await self.store.mark_welcomed(author.id, author.display_name)
+        except StorageError as exc:
+            log.warning("無法記錄歡迎狀態，這次先不歡迎：%s", exc)
+            return
+        if not first:
+            return
+        try:
+            await message.channel.send(
+                report.welcome_text(f"<@{author.id}>"),
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, roles=False, users=[discord.Object(id=author.id)], replied_user=False,
+                ),
+            )
+        except discord.HTTPException:
+            log.warning("歡迎訊息送出失敗（請確認 bot 有 Send Messages 權限）")
 
     async def _replied_bot_message_id(self, message: discord.Message) -> int | None:
         """如果這則訊息是在回覆 agent 自己的某則訊息，回傳那則訊息的編號。"""

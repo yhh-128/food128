@@ -97,10 +97,10 @@ def test_formula_text_is_text_in_all_three_sheets(store, cfg):
 # ---------------------------------------------------------------- 禮物櫃與編號
 
 
-def test_creates_workbook_with_three_sheets_and_headers(store, cfg):
+def test_creates_workbook_with_four_sheets_and_headers(store, cfg):
     run(add(store))
     wb = load_workbook(cfg.excel_path)
-    assert wb.sheetnames == ["禮物櫃", "修改歷史", "偏好"]
+    assert wb.sheetnames == ["禮物櫃", "修改歷史", "偏好", "已歡迎"]
     assert [c.value for c in wb["禮物櫃"][1]][:6] == ["編號", "送出日期", "登錄時間", "上傳者", "使用者ID", "禮物名稱"]
 
 
@@ -267,3 +267,26 @@ def test_corrupt_excel_file_raises_write_error(store, cfg):
 def test_reading_before_any_file_exists_does_not_create_one(store, cfg):
     assert run(store.list_gifts("111")) == [] and run(store.list_preferences("111")) == []
     assert not cfg.excel_path.exists()
+
+
+# ---------------------------------------------------------------- 第一次出現的人只歡迎一次
+
+
+def test_mark_welcomed_is_true_only_the_first_time_per_person(store, cfg):
+    assert run(store.mark_welcomed("111", "小明")) is True
+    assert run(store.mark_welcomed("111", "小明（改名了）")) is False
+    assert run(store.mark_welcomed("222", "小華")) is True
+    rows = sheet_rows(cfg, "已歡迎")
+    assert [(r[0], r[1]) for r in rows[1:]] == [("111", "小明"), ("222", "小華")]
+
+
+def test_welcome_name_is_stored_as_plain_text(store, cfg):
+    run(store.mark_welcomed("111", "=HYPERLINK(\"http://x\",\"y\")"))
+    cell = load_workbook(cfg.excel_path)["已歡迎"]["B2"]
+    assert cell.data_type != "f" and cell.value.startswith("'=")
+
+
+def test_welcomed_state_does_not_touch_gifts(store, cfg):
+    run(store.mark_welcomed("111", "小明"))
+    assert run(store.list_gifts("111")) == []
+    assert run(add(store, "111")).number == 1

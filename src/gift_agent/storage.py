@@ -36,7 +36,7 @@ SHORT_NAME_MAX = 12
 _WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
-GIFTS_SHEET, HISTORY_SHEET, PREFS_SHEET = "禮物櫃", "修改歷史", "偏好"
+GIFTS_SHEET, HISTORY_SHEET, PREFS_SHEET, WELCOME_SHEET = "禮物櫃", "修改歷史", "偏好", "已歡迎"
 ACTIVE, DELETED = "有效", "已刪除"
 
 # (程式裡的欄位名稱, Excel 表頭)
@@ -117,6 +117,18 @@ class PrefRow:
     logged_at: str
     status: str
     row_index: int = 0
+
+
+WELCOME_COLUMNS = [("user_id", "使用者ID"), ("uploader", "上傳者"), ("welcomed_at", "歡迎時間")]
+
+
+@dataclass
+class WelcomeRow:
+    """「這個人已經收過使用說明了」的紀錄；status 固定是有效，讓它也能經過 visible_rows。"""
+    user_id: str
+    uploader: str
+    welcomed_at: str
+    status: str = "有效"
 
 
 @dataclass
@@ -317,6 +329,7 @@ def _open(path: Path) -> Workbook:
         (GIFTS_SHEET, [h for _, h in GIFT_COLUMNS]),
         (HISTORY_SHEET, HISTORY_HEADERS),
         (PREFS_SHEET, [h for _, h in PREF_COLUMNS]),
+        (WELCOME_SHEET, [h for _, h in WELCOME_COLUMNS]),
     ):
         if title not in wb.sheetnames:
             wb.create_sheet(title).append(headers)
@@ -466,6 +479,23 @@ class GiftStore:
             _write_gift(wb, row)
             _log(wb, uid, uploader, number, "刪除", "狀態", ACTIVE, DELETED, said)
             return row
+
+        return await self._transact(fn)
+
+    # ---- 第一次出現的人：只歡迎一次 ----
+
+    async def mark_welcomed(self, user_id, uploader: str) -> bool:
+        """第一次呼叫回傳 True 並記下來；之後都回傳 False。檢查與記錄在同一次存檔裡完成，所以同時來兩則訊息也只會歡迎一次。"""
+        uid = str(user_id)
+
+        def fn(wb):
+            ws = wb[WELCOME_SHEET]
+            rows = [WelcomeRow(_str(v[0]) or "", _str(v[1]) or "", _str(v[2]) or "")
+                    for v in ws.iter_rows(min_row=2, values_only=True) if v and v[0] not in (None, "")]
+            if visible_rows(rows, uid):
+                return False
+            ws.append(_prepare_cells([uid, uploader, _now()]))
+            return True
 
         return await self._transact(fn)
 

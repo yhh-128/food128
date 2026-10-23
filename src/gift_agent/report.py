@@ -9,7 +9,8 @@ from gift_agent.storage import CHANGE_FIELDS, GiftRow, PrefRow
 FAIL_TEXT = "分析失敗，請再傳一次"
 UNCLEAR_TEXT = "我不太確定你的意思，可以換個說法嗎？"
 EXCEL_FAIL_TEXT = "紀錄暫時寫不進去，請稍後再試"
-MAX_REPLY_CHARS = 1900  # Discord 單則訊息上限是 2000
+DISCORD_LIMIT = 2000  # Discord 單則訊息上限
+MAX_REPLY_CHARS = 1900
 MAX_LIST_ITEMS = 15
 
 
@@ -190,10 +191,23 @@ def recommendation_reply(rec: Recommendation) -> str:
     return _clip("\n".join(lines))
 
 
+def welcome_text(mention: str | None = None) -> str:
+    """第一次出現在頻道的人看到的使用說明。mention 是 <@使用者ID>；在只有本人看得到的訊息裡就不需要。"""
+    hello = f"👋 歡迎 {mention}！" if mention else "👋 歡迎！"
+    return (
+        f"{hello}我是禮物櫃助理 🎁，可以這樣用：\n"
+        "1️⃣ **傳一張你送出去的禮物照片**（可以順便說明場合、送給誰、是不是手作、預算），我會辨識它並打 1～10 分的心意指數。\n"
+        "2️⃣ **輸入 `/禮物櫃`**，就能打開你自己的禮物櫃，看到你送過的所有禮物（只有你看得到）。\n"
+        "3️⃣ **告訴我你要送禮的對象**，我可以推薦適合的禮物。例如 @我 說：「同事下週生日，預算 800，幫我推薦」。\n"
+        "想知道更多，@我 說「怎麼用」就可以了。"
+    )
+
+
 def help_reply() -> str:
     return _clip(
         "我是禮物櫃助理 🎁\n"
         "・傳一張你送出去的禮物照片（可以順便說明場合、送給誰、是不是手作、預算），我會辨識並打心意指數。\n"
+        "・輸入 /禮物櫃 可以打開你自己的禮物櫃（只有你看得到）。\n"
         "・@我 或回覆我的訊息，用日常說話問我，例如：\n"
         "　「我送過哪些禮物？」「這個月的心意指數統計」「#3 其實是手作的」\n"
         "　「刪掉 #5」「幫我重新評分 #3」「同事下週生日，預算 800，幫我推薦」「記住：我喜歡實用型的禮物」\n"
