@@ -39,7 +39,7 @@
 1. 打開瀏覽器，網址列輸入 `https://discord.com/developers/applications`，按 Enter。
 2. 如果要求登入，用你的 Discord 帳號登入。
 3. 點右上角的藍色按鈕 **New Application**（新增應用程式）。
-4. 在 **Name** 欄位輸入名字，例如 `food128-bot`。這個名字就是 bot 在 Server 裡顯示的名字。
+4. 在 **Name** 欄位輸入名字，例如 `gift-agent`。這個名字就是 bot 在 Server 裡顯示的名字。
 5. 勾選下面同意條款的方塊。
 6. 點 **Create**（建立）。
 7. 你會進入這個 application 的設定頁（左邊有一排選單：General Information、Installation、OAuth2、Bot…）。
@@ -52,10 +52,10 @@
 
 ### 為什麼一定要
 
-Discord 預設**不讓 bot 看到訊息的內容**，包括：訊息裡的**文字**，以及訊息裡的**附件**（也就是食物照片）。沒打開的話，bot 收到訊息時文字是空的、看不到照片，整個 agent 就等於瞎了。
+Discord 預設**不讓 bot 看到訊息的內容**，包括：訊息裡的**文字**，以及訊息裡的**附件**（也就是禮物照片）。沒打開的話，bot 收到訊息時文字是空的、看不到照片，整個 agent 就等於瞎了。
 
 這個 agent 需要：
-- **照片附件**：才能拿到食物照片來分析。
+- **照片附件**：才能拿到禮物照片來分析。
 - **文字**：才能讀使用者附的備註（例如「只吃一半」）和更正的話（例如「那是豆漿」）。
 
 **Intent**（意圖）就是 Discord 要 bot 事先「申請」的權限開關。
@@ -99,7 +99,7 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
    DISCORD_TOKEN=（貼上你的 token）
    CHANNEL_ID=（貼上你在 server-setup 拿到的頻道 ID）
    CLAUDE_MODEL=（等一下我們再決定要填什麼）
-   DATA_DIR=（照片和 Excel 要放的資料夾，例如 C:\food128-data）
+   DATA_DIR=（照片和 Excel 要放的資料夾，例如 C:\gift-agent-data，或寫 ./data 代表專案資料夾裡的 data）
    ```
 
 3. 按 `Ctrl + S` 儲存。
@@ -132,9 +132,9 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 ### 4.2 產生邀請網址
 
 1. 在左邊選單點 **OAuth2**，再找到 **OAuth2 URL Generator**（若需要先往下捲或點開子項目）。
-2. 在 **Scopes**（範圍）區，勾選兩個：
+2. 在 **Scopes**（範圍）區，只勾這一個：
    - **bot**
-   - **applications.commands**（讓 bot 能提供 `/今日` 這類斜線指令）
+   - （**applications.commands** 這一版用不到，因為互動都靠 @agent 和回覆，沒有斜線指令；之前已經勾過也沒關係）
 3. 勾選 bot 之後，下面會出現 **Bot Permissions**（bot 權限）區。**只勾這四個**：
    - **View Channels**（檢視頻道）：看得到頻道
    - **Send Messages**（傳送訊息）：能回覆
@@ -150,7 +150,7 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 ### 4.3 把 bot 邀進你的 Server
 
 1. 打開一個新的瀏覽器分頁，把剛剛複製的網址貼到網址列，按 Enter。
-2. 頁面會顯示 **Add to server**（加入伺服器）。點下面的下拉選單，選你的 Server（例如 `food128`）。
+2. 頁面會顯示 **Add to server**（加入伺服器）。點下面的下拉選單，選你的 Server（例如 `gift-agent`）。
 3. 點 **Continue**（繼續）。
 4. 這一頁會列出剛剛勾選的權限，確認只有你勾的那幾個，然後點 **Authorize**（授權）。
 5. 如果出現「我不是機器人」的驗證，照著點選完成。
@@ -159,20 +159,20 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 ### 4.4 確認 bot 已經進來
 
 1. 回到 Discord，打開你的 Server。
-2. 看右邊的成員清單，往下找 **OFFLINE**（離線）區，應該看到 `food128-bot`，旁邊有個 **BOT** 標籤。
+2. 看右邊的成員清單，往下找 **OFFLINE**（離線）區，應該看到 `gift-agent`，旁邊有個 **BOT** 標籤。
 3. 它是灰色／離線，這是**正常的**，因為你的 agent 程式還沒開。程式啟動後，它會變成綠色的上線。
-4. 點進 `# food-log`（你在 server-setup 建的頻道），Discord 可能出現一則「food128-bot 加入了這個伺服器」的系統訊息。
+4. 點進 `# gift-box`（你在 server-setup 建的頻道），Discord 可能出現一則「gift-agent 加入了這個伺服器」的系統訊息。
 
 ---
 
 ## 完成檢查
 
-- [ ] 我已在 Developer Portal 建立 application（例如 `food128-bot`）
+- [ ] 我已在 Developer Portal 建立 application（例如 `gift-agent`）
 - [ ] **Message Content Intent** 已打開並儲存，重新整理後仍是打開的
 - [ ] Public Bot 已關閉
 - [ ] 我已複製 bot token，並**只**貼進 `.env`，沒貼到任何其他地方
 - [ ] `.env` 放在專案資料夾，檔名真的是 `.env`（不是 `.env.txt`）
-- [ ] 邀請網址的 Scopes 勾了 `bot` 和 `applications.commands`，權限只勾了 View Channels、Send Messages、Read Message History、Add Reactions
+- [ ] 邀請網址的 Scopes 勾了 `bot`，權限只勾了 View Channels、Send Messages、Read Message History、Add Reactions
 - [ ] bot 已出現在我的 Server 成員清單（灰色離線）
 - [ ] 我執行 `git status`，確認 `.env` 沒有出現在待 commit 清單裡
 
@@ -184,5 +184,5 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 | 找不到 Copy 按鈕，token 一直看不到 | token 只會在「Reset Token」之後顯示一次；沒複製到就再按一次 Reset Token |
 | 邀請網址打開後，下拉選單裡沒有我的 Server | 你登入的 Discord 帳號不是 Server 的擁有者，或是登入錯帳號；換成建立 Server 的那個帳號 |
 | 儲存 `.env` 後變成 `.env.txt` | 另存新檔時「存檔類型」要選「所有檔案」，檔名輸入 `.env` |
-| 之後 bot 上線，但完全沒反應 | 先檢查 Message Content Intent 有沒有儲存成功，再檢查 `CHANNEL_ID` 是不是 `# food-log` 頻道的 ID |
+| 之後 bot 上線，但完全沒反應 | 先檢查 Message Content Intent 有沒有儲存成功，再檢查 `CHANNEL_ID` 是不是 `# gift-box` 頻道的 ID |
 | 懷疑 token 外洩 | 立刻 Reset Token（見 3.4），再用新 token 更新 `.env` |
