@@ -132,9 +132,9 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 ### 4.2 產生邀請網址
 
 1. 在左邊選單點 **OAuth2**，再找到 **OAuth2 URL Generator**（若需要先往下捲或點開子項目）。
-2. 在 **Scopes**（範圍）區，只勾這一個：
+2. 在 **Scopes**（範圍）區，勾選兩個：
    - **bot**
-   - （**applications.commands** 這一版用不到，因為互動都靠 @agent 和回覆，沒有斜線指令；之前已經勾過也沒關係）
+   - **applications.commands**（讓 bot 能提供 `/禮物櫃` 這個斜線指令。沒勾的話 `/禮物櫃` 不會出現，其他功能不受影響）
 3. 勾選 bot 之後，下面會出現 **Bot Permissions**（bot 權限）區。**只勾這四個**：
    - **View Channels**（檢視頻道）：看得到頻道
    - **Send Messages**（傳送訊息）：能回覆
@@ -172,7 +172,7 @@ token **只會完整顯示一次**。顯示的當下就要複製，離開頁面�
 - [ ] Public Bot 已關閉
 - [ ] 我已複製 bot token，並**只**貼進 `.env`，沒貼到任何其他地方
 - [ ] `.env` 放在專案資料夾，檔名真的是 `.env`（不是 `.env.txt`）
-- [ ] 邀請網址的 Scopes 勾了 `bot`，權限只勾了 View Channels、Send Messages、Read Message History、Add Reactions
+- [ ] 邀請網址的 Scopes 勾了 `bot` 和 `applications.commands`，權限只勾了 View Channels、Send Messages、Read Message History、Add Reactions
 - [ ] bot 已出現在我的 Server 成員清單（灰色離線）
 - [ ] 我執行 `git status`，確認 `.env` 沒有出現在待 commit 清單裡
 

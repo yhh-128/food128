@@ -12,6 +12,7 @@ from gift_agent import pipeline, router
 from gift_agent.analyzer import AnalysisError
 from gift_agent.bot import DeleteConfirmView, GiftBot
 from gift_agent.config import Config
+from gift_agent.storage import ExcelWriteError
 
 CHANNEL = 111
 BOT_ID = 999
@@ -303,3 +304,120 @@ def test_confirm_uses_the_clickers_identity_so_another_users_gift_is_safe(cfg):
         assert (await store.get_gift("1001", 1)).status == "有效"
         assert "找不到" in mallory.response.edit_message.call_args.kwargs["content"]
     asyncio.run(go())
+
+
+# ---------------------------------------------------------------- /禮物櫃 斜線指令
+
+
+def slash(user_id, channel=CHANNEL):
+    return SimpleNamespace(
+        user=SimpleNamespace(id=user_id),
+        channel_id=channel,
+        response=SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock()),
+        followup=SimpleNamespace(send=AsyncMock()),
+    )
+
+
+def cabinet_bot(cfg):
+    return GiftBot(dataclasses.replace(cfg, channel_id=CHANNEL))
+
+
+def test_cabinet_command_is_registered_with_the_right_name(cfg):
+    b = GiftBot(cfg)
+    assert [c.name for c in b.tree.get_commands()] == ["禮物櫃"]
+
+
+def test_cabinet_lists_only_my_gifts_and_only_i_can_see_it(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        await add(b.store, "1001", name="我的圍巾")
+        await add(b.store, "1001", name="我的馬克杯", subs={"value": 2, "effort": 2, "fit": 2, "uniqueness": 2})
+        await add(b.store, "1002", name="別人的秘密禮物")
+        mine = slash(1001)
+        await b.show_cabinet(mine)
+        mine.response.defer.assert_awaited_once()
+        assert mine.response.defer.call_args.kwargs["ephemeral"] is True
+        text = mine.followup.send.call_args.args[0]
+        assert mine.followup.send.call_args.kwargs["ephemeral"] is True  # 只有本人看得到
+        assert "我的圍巾" in text and "我的馬克杯" in text and "別人的秘密禮物" not in text
+        assert "共 2 件，平均心意指數 4.9" in text
+        other = slash(1002)
+        await b.show_cabinet(other)
+        text2 = other.followup.send.call_args.args[0]
+        assert "別人的秘密禮物" in text2 and "我的圍巾" not in text2
+    asyncio.run(go())
+
+
+def test_cabinet_for_someone_without_gifts_and_deleted_gifts_are_hidden(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        g = await add(b.store, "1001", name="已刪除的禮物")
+        await b.store.delete_gift("1001", "小明", g.number)
+        for uid in (1001, 4242):
+            i = slash(uid)
+            await b.show_cabinet(i)
+            text = i.followup.send.call_args.args[0]
+            assert "還是空的" in text and "已刪除的禮物" not in text
+    asyncio.run(go())
+
+
+def test_cabinet_only_works_in_the_agents_channel(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        await add(b.store, "1001", name="我的圍巾")
+        i = slash(1001, channel=555)
+        await b.show_cabinet(i)
+        i.response.send_message.assert_awaited_once()
+        assert i.response.send_message.call_args.kwargs["ephemeral"] is True
+        assert f"<#{CHANNEL}>" in i.response.send_message.call_args.args[0]
+        i.followup.send.assert_not_called()
+    asyncio.run(go())
+
+
+def test_long_cabinet_is_trimmed_with_a_hint(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        for n in range(20):
+            await add(b.store, "1001", name=f"禮物{n}")
+        i = slash(1001)
+        await b.show_cabinet(i)
+        text = i.followup.send.call_args.args[0]
+        assert "共 20 件" in text and "還有 5 件沒列出" in text and len(text) < 2000
+    asyncio.run(go())
+
+
+def test_cabinet_survives_a_read_error(cfg, monkeypatch):
+    async def go():
+        b = cabinet_bot(cfg)
+
+        async def boom(uid):
+            raise ExcelWriteError("壞掉了")
+
+        monkeypatch.setattr(b.store, "list_gifts", boom)
+        i = slash(1001)
+        await b.show_cabinet(i)
+        assert i.followup.send.call_args.args[0] == "紀錄暫時寫不進去，請稍後再試"
+    asyncio.run(go())
+
+
+def test_commands_are_synced_once_to_the_agents_server(cfg):
+    async def go():
+        b = cabinet_bot(cfg)
+        guild = SimpleNamespace(id=777)
+        b.get_channel = lambda cid: SimpleNamespace(guild=guild) if cid == CHANNEL else None
+        b.tree.sync = AsyncMock(return_value=list(b.tree.get_commands()))
+        await b.on_ready()
+        await b.on_ready()  # 重新連線時 on_ready 會再觸發，不應該重複登記
+        b.tree.sync.assert_awaited_once_with(guild=guild)
+    asyncio.run(go())
+
+
+def test_sync_failure_is_a_warning_not_a_crash(cfg, caplog):
+    async def go():
+        b = cabinet_bot(cfg)
+        b.get_channel = lambda cid: SimpleNamespace(guild=SimpleNamespace(id=777))
+        b.tree.sync = AsyncMock(side_effect=discord.Forbidden(SimpleNamespace(status=403, reason="x"), "Missing Access"))
+        await b.on_ready()
+        assert b._commands_synced is False
+    asyncio.run(go())
+    assert "applications.commands" in caplog.text

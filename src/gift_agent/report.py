@@ -86,6 +86,20 @@ def list_reply(rows: list[GiftRow], total_in_cabinet: int) -> str:
     return _clip("\n".join(lines))
 
 
+def cabinet_reply(rows: list[GiftRow]) -> str:
+    """/禮物櫃：最新的在最上面，並附上件數與平均心意指數。"""
+    if not rows:
+        return "你的禮物櫃還是空的。在頻道傳一張你送出去的禮物照片，就會登錄第一件！"
+    ordered = sorted(rows, key=lambda r: (r.gift_date, r.number), reverse=True)
+    average = sum(r.score for r in rows) / len(rows)
+    shown = ordered[:MAX_LIST_ITEMS]
+    lines = [f"🎁 你的禮物櫃：共 {len(rows)} 件，平均心意指數 {average:.1f}"] + [gift_line(r) for r in shown]
+    if len(ordered) > len(shown):
+        lines.append(f"……還有 {len(ordered) - len(shown)} 件沒列出。@我 說「列出送給媽媽的」之類的話可以縮小範圍。")
+    lines.append("想看某一件的詳情，@我 說「看 #編號」。")
+    return _clip("\n".join(lines))
+
+
 def show_reply(row: GiftRow) -> str:
     lines = [
         f"🎁 #{row.number} {_safe(row.name)}",

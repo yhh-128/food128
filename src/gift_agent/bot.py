@@ -12,12 +12,14 @@ from dataclasses import dataclass
 
 import discord
 
+from discord import app_commands
+
 from gift_agent import report
 from gift_agent.actions import ConfirmDelete, Outcome
 from gift_agent.config import Config
 from gift_agent.pipeline import JobQueue, PhotoJob, process_upload
 from gift_agent.router import TextJob, handle_text
-from gift_agent.storage import ExcelWriteError, GiftStore, NotFound
+from gift_agent.storage import ExcelWriteError, GiftStore, NotFound, StorageError
 
 log = logging.getLogger(__name__)
 
@@ -103,14 +105,57 @@ class GiftBot(discord.Client):
         self.store = GiftStore(cfg)
         self.queue = JobQueue(self._handle)
         self._pending: dict[int, _Pending] = {}
+        self.tree = app_commands.CommandTree(self)
+        self._commands_synced = False
+
+        @self.tree.command(name="禮物櫃", description="查看你自己的禮物櫃（只有你看得到）")
+        async def cabinet(interaction: discord.Interaction) -> None:
+            await self.show_cabinet(interaction)
 
     async def setup_hook(self) -> None:
         self.queue.start()
 
     async def on_ready(self) -> None:
         log.info("已上線：%s，只聽頻道 %s", self.user, self.cfg.channel_id)
-        if self.get_channel(self.cfg.channel_id) is None:
+        channel = self.get_channel(self.cfg.channel_id)
+        if channel is None:
             log.warning("看不到 CHANNEL_ID=%s 這個頻道：請確認 bot 已被邀進 Server，且 CHANNEL_ID 是頻道的 ID（不是 Server 的 ID）", self.cfg.channel_id)
+            return
+        await self._sync_commands(channel.guild)
+
+    async def _sync_commands(self, guild) -> None:
+        """把斜線指令登記到這個 Server（只登記一個 Server，所以很快就會出現在選單裡）。"""
+        if self._commands_synced:  # on_ready 重新連線時會再觸發一次，不用重複登記
+            return
+        try:
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+        except discord.HTTPException as exc:
+            log.warning(
+                "斜線指令登記失敗（%s）：邀請 bot 時要勾選 applications.commands 範圍，"
+                "請照 docs/discord-bot-setup.md 第四節重新授權一次。沒有它仍可用 @agent 查詢。", exc,
+            )
+            return
+        self._commands_synced = True
+        log.info("已登記斜線指令：%s", "、".join(f"/{c.name}" for c in synced) or "（無）")
+
+    # ------------------------------------------------------------ 斜線指令 /禮物櫃
+
+    async def show_cabinet(self, interaction: discord.Interaction) -> None:
+        """只列出「按指令的這個人」自己的禮物；回覆只有本人看得到（ephemeral）。不呼叫 AI，不花額度。"""
+        if interaction.channel_id != self.cfg.channel_id:
+            await interaction.response.send_message(
+                f"請到 <#{self.cfg.channel_id}> 使用這個指令。", ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=False)
+        try:
+            rows = await self.store.list_gifts(interaction.user.id)  # 身分只來自 Discord（防護 5 會篩選）
+            text = report.cabinet_reply(rows)
+        except StorageError as exc:
+            log.error("讀取禮物櫃失敗：%s", exc)
+            text = report.EXCEL_FAIL_TEXT
+        await interaction.followup.send(text, ephemeral=True)
 
     # ------------------------------------------------------------ 收訊息
 
