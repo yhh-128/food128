@@ -158,19 +158,19 @@ async def analyze_photo(staging_path: Path, note: str, cfg: Config) -> Analysis:
     # 每次建一個一次性的暫存資料夾（在 DATA_DIR 之外），裡面只放這一張照片的縮圖，
     # 並讓 claude 在那裡執行。--restricted 另外拿掉執行指令的工具、忽略使用者設定檔，
     # 並把檔案工具限制在工作目錄裡。
-    temp_dir = Path(tempfile.mkdtemp(prefix="foodbot-"))
-    _save_resized_copy(staging_path, temp_dir / "photo.jpg")
-    workdir = temp_dir
-    photo_ref = "photo.jpg"
-    extra_args += ["--restricted"]
+    # temp_dir = Path(tempfile.mkdtemp(prefix="foodbot-"))
+    # _save_resized_copy(staging_path, temp_dir / "photo.jpg")
+    # workdir = temp_dir
+    # photo_ref = "photo.jpg"
+    # extra_args += ["--restricted"]
     # ==== 防護 1 結束 ====
 
     # ==== 防護 2：上傳者的文字只當資料 開始 ====
     # 指令本身是固定寫死的；上傳者的字只放在 stdin 的 <user_note> 區塊裡，
     # 並先換掉角括號（避免偽造結束標記）、去掉控制字元、限制長度。
-    instruction = INSTRUCTION_BASE + DATA_NOTICE
-    safe_note = _CONTROL_CHARS.sub(" ", note).replace("<", "＜").replace(">", "＞").strip()
-    note_block = f"<user_note>\n{safe_note or '(none)'}\n</user_note>\n"
+    # instruction = INSTRUCTION_BASE + DATA_NOTICE
+    # safe_note = _CONTROL_CHARS.sub(" ", note).replace("<", "＜").replace(">", "＞").strip()
+    # note_block = f"<user_note>\n{safe_note or '(none)'}\n</user_note>\n"
     # ==== 防護 2 結束 ====
 
     stdin_text = f"Photo file: {photo_ref}\n{note_block}"

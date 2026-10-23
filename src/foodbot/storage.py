@@ -68,15 +68,15 @@ def make_photo_path(photos_dir: Path, sent_at: datetime, raw_name: str) -> Path:
     # ==== 防護 3：食物名稱當檔名前先清洗 開始 ====
     # 清掉 / \ : * ? " < > | 與控制字元，把 .. 換掉，去掉結尾的點和空白，
     # 避開 Windows 保留名（CON、NUL…），最後確認完整路徑真的落在照片資料夾裡。
-    safe_name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', "_", raw_name)
-    safe_name = safe_name.replace("..", "_").strip(" .")
-    if safe_name.split(".")[0].strip().upper() in _WINDOWS_RESERVED:
-        safe_name = "_" + safe_name
-    if not safe_name:
-        safe_name = "未命名"
-    probe = (photos_dir / f"{stamp} {safe_name}.jpg").resolve()
-    if probe.parent != photos_dir.resolve():
-        safe_name = "未命名"
+    # safe_name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', "_", raw_name)
+    # safe_name = safe_name.replace("..", "_").strip(" .")
+    # if safe_name.split(".")[0].strip().upper() in _WINDOWS_RESERVED:
+        # safe_name = "_" + safe_name
+    # if not safe_name:
+        # safe_name = "未命名"
+    # probe = (photos_dir / f"{stamp} {safe_name}.jpg").resolve()
+    # if probe.parent != photos_dir.resolve():
+        # safe_name = "未命名"
     # ==== 防護 3 結束 ====
 
     photos_dir.mkdir(parents=True, exist_ok=True)
@@ -110,7 +110,7 @@ def _prepare_cells(values: list) -> list:
 
     # ==== 防護 4：寫進 Excel 的文字不能被當成公式 開始 ====
     # 文字若以 = + - @（或 Tab、換行）開頭，前面加一個 ' 變成純文字。
-    cells = [("'" + v) if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES) else v for v in cells]
+    # cells = [("'" + v) if isinstance(v, str) and v.startswith(_FORMULA_PREFIXES) else v for v in cells]
     # ==== 防護 4 結束 ====
     return cells
 
